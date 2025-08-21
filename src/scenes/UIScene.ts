@@ -12,14 +12,12 @@ export default class UIScene extends Phaser.Scene {
   private miniViewport!: any;
   private miniRect = { x: 0, y: 0, w: 0, h: 0 };
   private smoothVP = { x: 0, y: 0, w: 0, h: 0 };
-  private miniDotsRT!: Phaser.GameObjects.RenderTexture | null;
-  private miniZoom = 1;
-  private readonly MIN_ZOOM = 0.5;
-  private readonly MAX_ZOOM = 3;
+  private miniDotsRT!: any;  // RT para puntos (tipado laxo para evitar dependencia directa)
+  private miniZoom = 1; private readonly MIN_ZOOM = 0.5; private readonly MAX_ZOOM = 3;
   private miniOrigin = { x: 0, y: 0 };
   private showGrid = true;
-  private miniPlayerArrow!: Phaser.GameObjects.Image;
-  private gridLabel!: Phaser.GameObjects.Text;
+  private miniPlayerArrow!: any; // flecha jugador (brújula)
+  private gridLabel!: any; // etiqueta toggle rejilla
   private startTime = 0;
   private timeText!: any;
   private gameOverShown = false;
@@ -50,21 +48,13 @@ export default class UIScene extends Phaser.Scene {
     this.miniFrame = this.add.graphics().setScrollFactor(0);
     this.miniViewport = this.add.graphics().setScrollFactor(0);
 
-    if (!this.miniDotsRT) {
-      this.miniDotsRT = this.make.renderTexture({
-        x: this.miniRect.x,
-        y: this.miniRect.y,
-        width: this.miniRect.w,
-        height: this.miniRect.h,
-        add: true
-      }).setOrigin(0, 0).setDepth(1000);
-    }
+    // RT para dots (solo una vez)
+    this.miniDotsRT = this.add.renderTexture(this.miniRect.x, this.miniRect.y, this.miniRect.w, this.miniRect.h)
+      .setScrollFactor(0).setDepth(1000);
 
-    this.miniPlayerArrow = this.add.image(
-      this.miniRect.x + this.miniRect.w / 2,
-      this.miniRect.y + this.miniRect.h / 2,
-      "arrow_player"
-    ).setOrigin(0.5).setScrollFactor(0).setDepth(1002).setAlpha(0.95);
+    // Flecha jugador
+    this.miniPlayerArrow = this.add.image(this.miniRect.x + this.miniRect.w / 2, this.miniRect.y + this.miniRect.h / 2, "arrow_player")
+      .setOrigin(0.5).setScrollFactor(0).setDepth(1002).setAlpha(0.95);
 
     this.drawMiniFrame();
     this.layoutStaminaBar();
@@ -79,7 +69,10 @@ export default class UIScene extends Phaser.Scene {
         this.drawMiniFrame();
       });
 
-    const wheelHandler = (_p: any, _objs: any, _dx: number, dy: number) => {
+    const wheelHandler = (pointer: any, _objs: any, _dx: number, dy: number) => {
+      const inside = pointer.x >= this.miniRect.x && pointer.x <= this.miniRect.x + this.miniRect.w &&
+        pointer.y >= this.miniRect.y && pointer.y <= this.miniRect.y + this.miniRect.h;
+      if (!inside) return;
       const factor = dy > 0 ? 0.9 : 1.1;
       this.miniZoom = Phaser.Math.Clamp(this.miniZoom * factor, this.MIN_ZOOM, this.MAX_ZOOM);
       this.smoothVP = { x: 0, y: 0, w: 0, h: 0 };
@@ -90,9 +83,9 @@ export default class UIScene extends Phaser.Scene {
 
     const minimapRectHandler = (_p: any, r: any) => {
       this.miniRect = r;
-      this.miniDotsRT?.setPosition(r.x, r.y).resize(r.w, r.h);
-      this.miniPlayerArrow?.setPosition(r.x + r.w / 2, r.y + r.h / 2);
-      this.gridLabel?.setPosition(r.x, r.y - 18);
+      if (this.miniDotsRT) { this.miniDotsRT.setPosition(r.x, r.y); this.miniDotsRT.resize(r.w, r.h); }
+      if (this.miniPlayerArrow) this.miniPlayerArrow.setPosition(r.x + r.w / 2, r.y + r.h / 2);
+      if (this.gridLabel) this.gridLabel.setPosition(r.x, r.y - 18);
       this.drawMiniFrame();
       this.layoutStaminaBar();
       this.smoothVP = { x: 0, y: 0, w: 0, h: 0 };
@@ -154,14 +147,7 @@ export default class UIScene extends Phaser.Scene {
   private drawViewportRect() {
     const vp = this.registry.get("viewport");
     if (!vp) return;
-    const worldW = this.registry.get("worldW") ?? 3000;
-    const worldH = this.registry.get("worldH") ?? 3000;
-    const player = (this.scene.get("WorldScene") as any)?.player;
-    const focusX = player?.x ?? worldW / 2;
-    const focusY = player?.y ?? worldH / 2;
-    const { scaleX, scaleY, originX, originY } = computeMinimapTransform(
-      this.miniRect, this.miniZoom, worldW, worldH, focusX, focusY
-    );
+  const { scaleX, scaleY, originX, originY } = this.getMiniTransform();
     let rx = this.miniRect.x + (vp.x - originX) * scaleX;
     let ry = this.miniRect.y + (vp.y - originY) * scaleY;
     let rw = vp.w * scaleX;
@@ -220,14 +206,7 @@ export default class UIScene extends Phaser.Scene {
     const rt = this.miniDotsRT; rt.clear();
     const worldScene = this.scene.get("WorldScene") as any;
     if (!worldScene) return;
-    const worldW = this.registry.get("worldW") || 3000;
-    const worldH = this.registry.get("worldH") || 3000;
-    const player = worldScene.player;
-    const focusX = player?.x ?? worldW / 2;
-    const focusY = player?.y ?? worldH / 2;
-    const { scaleX, scaleY, originX, originY } = computeMinimapTransform(
-      this.miniRect, this.miniZoom, worldW, worldH, focusX, focusY
-    );
+  const { scaleX, scaleY, originX, originY } = this.getMiniTransform();
     const addDot = (x: number, y: number, key: string) => {
       const dx = (x - originX) * scaleX;
       const dy = (y - originY) * scaleY;
@@ -265,7 +244,7 @@ export default class UIScene extends Phaser.Scene {
     const dx = this.miniRect.x + (player.x - originX) * scaleX;
     const dy = this.miniRect.y + (player.y - originY) * scaleY;
     this.miniPlayerArrow.setPosition(Math.floor(dx), Math.floor(dy));
-    const body = player.body as Phaser.Physics.Arcade.Body | undefined;
+  const body = player.body as any;
     let angle = player.rotation ?? 0;
     if (body && (Math.abs(body.velocity.x) > 0.1 || Math.abs(body.velocity.y) > 0.1))
       angle = Math.atan2(body.velocity.y, body.velocity.x);

@@ -75,7 +75,7 @@ export default class WorldScene extends Phaser.Scene {
 
     // Fog of war
     this.initFog();
-    if (this.fogRT) this.minimapCam.ignore(this.fogRT); // evitar fog en minimapa
+  if (this.fogRT && this.minimapCam) this.minimapCam.ignore(this.fogRT); // evitar fog en minimapa
     console.info("[WorldScene] fog initialized", !!this.fogRT);
 
     // Depth sorting periódico
@@ -337,6 +337,8 @@ export default class WorldScene extends Phaser.Scene {
     this.fogRT.setDepth(9999); // por encima; la UIScene está en otra escena
     this.fogRT.fill(0x000000, 0.72);
     this.fogNeedsRedraw = true;
+  // Asegurar que el minimapa no muestre la niebla si ya existe
+  if (this.minimapCam && this.fogRT) this.minimapCam.ignore(this.fogRT);
   }
 
   private updateFog() {

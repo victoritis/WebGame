@@ -42,6 +42,7 @@ export default class BootScene extends Phaser.Scene {
 
   // Recursos auxiliares (minimapa y niebla)
   this.generateMiniDots();
+  // Flecha jugador para modo brújula en minimapa
   this.generatePlayerArrow();
   this.generateFogBrush();
       console.info("[BootScene] starting World + UI scenes");
