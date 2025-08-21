@@ -63,6 +63,12 @@ export default class WorldScene extends Phaser.Scene {
     this.physics.add.existing(this.player);
     this.player.setCollideWorldBounds(true);
 
+    // Colisiones y recolecciones
+    this.physics.add.collider(this.player, this.obstacles);
+    this.physics.add.overlap(this.player, this.coins, this.onCollectCoin, undefined, this);
+    this.physics.add.overlap(this.player, this.hazards, this.onHitHazard, undefined, this);
+    this.physics.add.overlap(this.player, this.powerUps, this.onTakePowerUp, undefined, this);
+
     // Cámara principal cercana
     this.mainCam = this.cameras.main;
     this.mainCam.startFollow(this.player, true, 0.12, 0.12);
@@ -122,6 +128,7 @@ export default class WorldScene extends Phaser.Scene {
     ignore(this.hazards?.getChildren?.() || []);
     ignore(this.powerUps?.getChildren?.() || []);
     if (this.fogRT) ignore(this.fogRT);
+    ignore(this.minimapIgnoreList);
     this.registry.set("minimapRect", { x: MM_X, y: MM_Y, w: cfg.w, h: cfg.h });
   }
 
@@ -351,18 +358,51 @@ export default class WorldScene extends Phaser.Scene {
   }
 
   private buildBackground() {
-    for (let x = 0; x < this.worldW; x += 64) {
-      for (let y = 0; y < this.worldH; y += 64) {
-        this.add.image(x, y, "floor_plain").setOrigin(0);
-      }
-    }
+    // Suelo con TileSprite para reducir draw calls
+    this.add.tileSprite(0, 0, this.worldW, this.worldH, "floor_plain").setOrigin(0);
     this.obstacles = this.physics.add.staticGroup();
     this.coins = this.physics.add.staticGroup();
     this.hazards = this.physics.add.staticGroup();
     this.powerUps = this.physics.add.staticGroup();
+    this.buildBorders();
     this.spawnObstacles(30, 120);
     this.spawnCoins(40, 80);
     this.spawnHazards(12, 180);
     this.spawnPowerUps();
+  }
+
+  /** Construye muros exteriores y decoraciones básicas */
+  private buildBorders() {
+    const tile = 64;
+    const maxX = this.worldW - tile;
+    const maxY = this.worldH - tile;
+    // Bordes horizontales
+    for (let x = 0; x <= maxX; x += tile) {
+      const top = this.obstacles.create(x, 0, "edge_n").setOrigin(0);
+      const bottom = this.obstacles.create(x, maxY, "edge_s").setOrigin(0);
+      top.refreshBody();
+      bottom.refreshBody();
+    }
+    // Bordes verticales
+    for (let y = tile; y < maxY; y += tile) {
+      const left = this.obstacles.create(0, y, "edge_w").setOrigin(0);
+      const right = this.obstacles.create(maxX, y, "edge_e").setOrigin(0);
+      left.refreshBody();
+      right.refreshBody();
+    }
+    // Esquinas
+    this.obstacles.create(0, 0, "edge_nw").setOrigin(0).refreshBody();
+    this.obstacles.create(maxX, 0, "edge_ne").setOrigin(0).refreshBody();
+    this.obstacles.create(0, maxY, "edge_sw").setOrigin(0).refreshBody();
+    this.obstacles.create(maxX, maxY, "edge_se").setOrigin(0).refreshBody();
+    // Antorchas decorativas (sin colisión)
+    const to = 32;
+    const deco = [
+      this.add.image(tile + to, tile, "torch_1"),
+      this.add.image(maxX - to, tile, "torch_1"),
+      this.add.image(tile + to, maxY, "torch_1"),
+      this.add.image(maxX - to, maxY, "torch_1")
+    ];
+    deco.forEach(d => { d.setOrigin(0.5, 1); this.minimapIgnoreList.push(d); });
   }
 }

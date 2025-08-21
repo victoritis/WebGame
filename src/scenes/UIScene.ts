@@ -89,6 +89,7 @@ export default class UIScene extends Phaser.Scene {
       this.drawMiniFrame();
       this.layoutStaminaBar();
       this.smoothVP = { x: 0, y: 0, w: 0, h: 0 };
+      this.redrawMiniDots();
     };
     this.registry.events.on("changedata-minimapRect", minimapRectHandler);
 
