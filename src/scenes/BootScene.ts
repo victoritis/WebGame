@@ -12,7 +12,17 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("box", `${base}/box.png`);
     this.load.image("column", `${base}/column.png`);
     this.load.image("chest_golden_closed", `${base}/chest_golden_closed.png`); // usaremos como "moneda"
-  this.load.image("monster_bat", `${base}/monster_bat.png`); // peligro
+    this.load.image("monster_bat", `${base}/monster_bat.png`); // peligro
+    // Nuevos elementos de escenario
+    this.load.image("edge_n", `${base}/Edge_n.png`);
+    this.load.image("edge_s", `${base}/Edge_s.png`);
+    this.load.image("edge_e", `${base}/Edge_e.png`);
+    this.load.image("edge_w", `${base}/Edge_w.png`);
+    this.load.image("edge_ne", `${base}/Edge_ne.png`);
+    this.load.image("edge_nw", `${base}/Edge_nw.png`);
+    this.load.image("edge_se", `${base}/Edge_se.png`);
+    this.load.image("edge_sw", `${base}/Edge_sw.png`);
+    this.load.image("torch_1", `${base}/torch_1.png`);
 
   // Audio embebido (beep simple y sonidos básicos). Base64 wav muy pequeños
   this.load.audio("s_pickup", ["data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AACJWAAACABAAZGF0YQgAAAAA/////wAAAP///wAAAA=="]); // click/beep corto

@@ -20,8 +20,8 @@ export function computeMinimapTransform(
   const scaleY = baseScaleY * miniZoom;
   const halfW = miniRect.w / (2 * scaleX);
   const halfH = miniRect.h / (2 * scaleY);
-  const originX = clamp(focusX - halfW, 0, Math.max(0, worldW - 2 * halfW)) || 0;
-  const originY = clamp(focusY - halfH, 0, Math.max(0, worldH - 2 * halfH)) || 0;
+  const originX = Math.floor(clamp(focusX - halfW, 0, Math.max(0, worldW - 2 * halfW)) || 0);
+  const originY = Math.floor(clamp(focusY - halfH, 0, Math.max(0, worldH - 2 * halfH)) || 0);
   return { scaleX, scaleY, originX, originY };
 }
 
