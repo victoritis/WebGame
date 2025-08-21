@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  web:
+    image: node:20-alpine
+    working_dir: /app
+    profiles: ["dev"]
+    ports:
+      - "${VITE_PORT:-5173}:5173"
+    volumes:
+      - .:/app:cached
+      - node_modules:/app/node_modules
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      VITE_PORT: "${VITE_PORT:-5173}"
+      VITE_HOST: "0.0.0.0"
+    command: >
+      sh -c "
+        if [ ! -f package-lock.json ]; then npm install; fi &&
+        if [ ! -d node_modules ] || [ -z \"$(ls -A node_modules 2>/dev/null)\" ]; then npm ci || npm install; fi &&
+        npm run dev -- --host 0.0.0.0 --port ${VITE_PORT:-5173}
+      "
+
+  prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+    image: tu-juego:prod
+    profiles: ["prod"]
+    ports:
+      - "${PROD_PORT:-8080}:80"
+    restart: unless-stopped
+
+volumes:
+  node_modules:
