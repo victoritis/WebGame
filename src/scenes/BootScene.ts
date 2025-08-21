@@ -42,6 +42,7 @@ export default class BootScene extends Phaser.Scene {
 
   // Recursos auxiliares (minimapa y niebla)
   this.generateMiniDots();
+  this.generatePlayerArrow();
   this.generateFogBrush();
       console.info("[BootScene] starting World + UI scenes");
       this.scene.start("WorldScene");
@@ -101,31 +102,27 @@ export default class BootScene extends Phaser.Scene {
     const makeDot = (key: string, color: number) => {
       if (this.textures.exists(key)) return;
       const g = this.make.graphics({ add: false });
-      g.fillStyle(color, 1).fillCircle(4, 4, 4);
+      g.fillStyle(0x000000, 0.25).fillCircle(4, 4, 5);
+      g.fillStyle(color, 1).fillCircle(4, 4, 3);
       g.generateTexture(key, 8, 8);
       g.destroy();
     };
-    makeDot("dot_player", 0x66ff66);
-    makeDot("dot_hazard", 0xff5252);
-    makeDot("dot_coin", 0xffeb3b);
-    makeDot("dot_power", 0x40c4ff);
-    if (!this.textures.exists("heart")) {
-      const g = this.make.graphics({ add: false });
-      g.fillStyle(0xff5252, 1);
-      const w = 20, h = 18;
-      g.beginPath();
-      g.moveTo(w / 2, h);
-      g.bezierCurveTo(-4, h - 8, 2, 2, w / 2 - 2, h / 3);
-      g.bezierCurveTo(w / 2, -2, w - 2, 2, w + 4, h - 8);
-      g.closePath();
-      g.fillPath();
-      g.generateTexture("heart", w + 4, h + 2);
-      g.destroy();
-    }
+    makeDot("dot_player", 0x90caf9);
+    makeDot("dot_coin", 0xfff176);
+    makeDot("dot_hazard", 0xef5350);
+    makeDot("dot_power", 0x80cbc4);
   }
 
-  private createHeroAnimations() {
-  // Animaciones direccionales eliminadas para simplificar (no necesarias con sprite estático)
+  /** Icono flecha del jugador para el minimapa */
+  private generatePlayerArrow() {
+    if (this.textures.exists("arrow_player")) return;
+    const g = this.make.graphics({ add: false });
+    g.fillStyle(0x000000, 0.35);
+    g.fillTriangle(9, 0, 0, 16, 18, 16);
+    g.fillStyle(0xffffff, 1);
+    g.fillTriangle(8, 1, 2, 15, 14, 15);
+    g.generateTexture("arrow_player", 18, 16);
+    g.destroy();
   }
 
   private generateFogBrush() {

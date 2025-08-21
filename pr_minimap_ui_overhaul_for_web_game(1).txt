@@ -1,0 +1,331 @@
+*** Begin Patch
+*** Update File: src/scenes/WorldScene.ts
+@@
+ export default class WorldScene extends Phaser.Scene {
+   private worldW = 3000;
+   private worldH = 3000;
+ 
+   public player!: Player;
+   private obstacles!: any;
+   private coins!: any;
+   private hazards!: any;
+   private powerUps!: any;
+@@
+   private mainCam!: any;
+   private minimapCam!: any;
+   private fogRT!: any;
+   private fogNeedsRedraw = true;
++  // --- Minimap helpers ---
++  private minimapIgnoreList: any[] = [];
++  private minimapMode: "small" | "large" = "small";
++  private MM_SMALL = { w: 220, h: 220, pad: 16 };
++  private MM_LARGE = { w: 380, h: 380, pad: 18 };
+@@
+   create() {
+@@
+-    const SHIFT = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
++    const SHIFT = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
++    const TAB = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TAB);
+     const ZOUT = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.MINUS);
+     const ZIN = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.EQUALS);
+     const ZRST = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ZERO);
+-    this.keys = { W, A, S, D, SHIFT, ZIN, ZOUT, ZRST };
++    this.keys = { W, A, S, D, SHIFT, ZIN, ZOUT, ZRST, TAB };
+@@
+-    // Cámara principal cercana
++    // Cámara principal cercana
+     this.mainCam = this.cameras.main;
+     this.mainCam.startFollow(this.player, true, 0.12, 0.12);
+     this.mainCam.setBounds(0, 0, this.worldW, this.worldH);
+     this.mainCam.setZoom(2.2);
+     this.mainCam.setRoundPixels(true);
+@@
+-    // Minimapa
+-    const MM_W = 220, MM_H = 220, PAD = 16;
+-    const MM_X = this.scale.width - MM_W - PAD;
+-    const MM_Y = PAD;
+-    const fitZoom = Math.min(MM_W / this.worldW, MM_H / this.worldH);
+-    this.minimapCam = this.cameras.add(MM_X, MM_Y, MM_W, MM_H)
+-      .setZoom(fitZoom)
+-      .setScroll(0, 0)
+-      .setBackgroundColor(0x000000)
+-      .setName("minimap");
+-    this.minimapCam.setRoundPixels(true);
+-    this.registry.set("minimapRect", { x: MM_X, y: MM_Y, w: MM_W, h: MM_H });
++    // Minimapa (arreglado y mejorado): tamaño conmutables y objetos ignorados
++    this.updateMinimapLayout();
+@@
+-  // Fog of war (exploración)
+-  this.initFog();
+-  console.info("[WorldScene] fog initialized", !!this.fogRT);
++    // Fog of war (exploración)
++    this.initFog();
++    // Arreglo clave: el minimapa no debe mostrar la niebla
++    if (this.fogRT) this.minimapCam.ignore(this.fogRT);
++    console.info("[WorldScene] fog initialized", !!this.fogRT);
+@@
+     this.time.addEvent({
+       delay: 120,
+       loop: true,
+       callback: () => {
+         if (!this.player) return;
+@@
+       }
+     });
+     console.info("[WorldScene] create end");
+   }
++
++  /** Recalcula la cámara del minimapa según el modo actual y actualiza el rect en la UI */
++  private updateMinimapLayout() {
++    const cfg = this.minimapMode === "small" ? this.MM_SMALL : this.MM_LARGE;
++    const MM_X = this.scale.width - cfg.w - cfg.pad;
++    const MM_Y = cfg.pad;
++    const fitZoom = Math.min(cfg.w / this.worldW, cfg.h / this.worldH);
++    if (!this.minimapCam) {
++      this.minimapCam = this.cameras.add(MM_X, MM_Y, cfg.w, cfg.h)
++        .setZoom(fitZoom)
++        .setScroll(0, 0)
++        .setBackgroundColor(0x000000)
++        .setName("minimap");
++      this.minimapCam.setRoundPixels(true);
++    } else {
++      this.minimapCam.setViewport(MM_X, MM_Y, cfg.w, cfg.h);
++      this.minimapCam.setZoom(fitZoom);
++      this.minimapCam.setScroll(0, 0);
++    }
++    // Ignora elementos dinámicos que no queremos ver en el minimapa (usamos dots en la UI)
++    const ignore = (obj: any) => { if (!obj) return; if (Array.isArray(obj)) obj.forEach(ignore); else this.minimapCam.ignore(obj); };
++    ignore(this.player);
++    ignore(this.obstacles?.getChildren?.() || []);
++    ignore(this.coins?.getChildren?.() || []);
++    ignore(this.hazards?.getChildren?.() || []);
++    ignore(this.powerUps?.getChildren?.() || []);
++    if (this.fogRT) ignore(this.fogRT);
++    // Avisamos a la UI
++    this.registry.set("minimapRect", { x: MM_X, y: MM_Y, w: cfg.w, h: cfg.h });
++  }
++
++  private toggleMinimapSize() {
++    this.minimapMode = this.minimapMode === "small" ? "large" : "small";
++    this.updateMinimapLayout();
++  }
+@@
+   update(_t: number, dt: number) {
+     this.player.update(dt);
+     if (!this.player) {
+       console.error("[WorldScene] player undefined in update");
+       return;
+     }
++    // Alternar tamaño de minimapa
++    if (Phaser.Input.Keyboard.JustDown(this.keys.TAB)) this.toggleMinimapSize();
+@@
+     // Actualizamos rectángulo de viewport para el minimapa (cada frame barato)
+     const vp = {
+       x: this.mainCam.worldView.x,
+       y: this.mainCam.worldView.y,
+       w: this.mainCam.worldView.width,
+       h: this.mainCam.worldView.height
+     };
+     this.registry.set("viewport", vp);
+@@
+   }
+@@
+   private spawnObstacles(count: number, minSpacing: number) {
+@@
+-      const sprite = this.obstacles.create(p.x, p.y, key) as any;
++      const sprite = this.obstacles.create(p.x, p.y, key) as any;
+       sprite.setOrigin(0.5, 1);
+       sprite.refreshBody();
+@@
+-      placed.push({ x: p.x, y: p.y });
++      // No los dibujamos en el minimapa (usamos dots simplificados)
++      this.minimapCam?.ignore?.(sprite);
++      placed.push({ x: p.x, y: p.y });
+     }
+   }
+@@
+   private spawnCoins(count: number, minSpacing: number) {
+@@
+-    const coin = this.coins.create(p.x, p.y, "chest_golden_closed") as any;
++    const coin = this.coins.create(p.x, p.y, "chest_golden_closed") as any;
+       coin.setDepth(coin.y);
+       coin.setOrigin(0.5, 1);
+       coin.refreshBody();
+       if (coin.body instanceof Phaser.Physics.Arcade.Body) coin.body.setSize(16, 12).setOffset((coin.width - 16) / 2, coin.height - 14);
++      this.minimapCam?.ignore?.(coin);
+       placed.push({ x: p.x, y: p.y });
+     }
+   }
+@@
+   private spawnHazards(count: number, minSpacing: number) {
+@@
+-      const key = this.textures.exists("monster_bat") ? "monster_bat" : "box";
+-      const hazard = this.hazards.create(p.x, p.y, key) as any;
++      const key = this.textures.exists("monster_bat") ? "monster_bat" : "box";
++      const hazard = this.hazards.create(p.x, p.y, key) as any;
+       hazard.setOrigin(0.5, 1);
+@@
+-      hazard.setTint(0xff5252);
++      hazard.setTint(0xff5252);
++      this.minimapCam?.ignore?.(hazard);
+       placed.push({ x: p.x, y: p.y });
+       this.tweens.add({ targets: hazard, y: hazard.y - 6, duration: 900, yoyo: true, repeat: -1, ease: "sine.inOut" });
+     }
+   }
+@@
+   private spawnPowerUps() {
+@@
+-      const pu = this.powerUps.create(p.x, p.y, key) as any;
++      const pu = this.powerUps.create(p.x, p.y, key) as any;
+       pu.setData("ptype", type);
+       pu.setOrigin(0.5, 1);
+       pu.setTint(type === "shield" ? 0x82b1ff : 0xffab91);
+       if (pu.body instanceof Phaser.Physics.Arcade.StaticBody) pu.body.setSize(16, 14).setOffset((pu.width - 16) / 2, pu.height - 16).updateFromGameObject();
+       this.tweens.add({ targets: pu, alpha: 0.55, duration: 900, yoyo: true, repeat: -1 });
++      this.minimapCam?.ignore?.(pu);
+     }
+   }
+@@
+   private initFog() {
+     if (!this.textures.exists("fog_brush")) return;
+     this.fogRT = this.make.renderTexture({ width: this.worldW, height: this.worldH, add: true });
+     this.fogRT.setDepth(9999); // por encima; la UIScene está en otra escena
+     this.fogRT.fill(0x000000, 0.72);
+     this.fogNeedsRedraw = true;
+   }
+*** End Patch
+*** Begin Patch
+*** Update File: src/scenes/UIScene.ts
+@@
+ export default class UIScene extends Phaser.Scene {
+@@
+   private miniViewport!: any;
+   private miniRect = { x: 0, y: 0, w: 0, h: 0 };
++  private smoothVP = { x: 0, y: 0, w: 0, h: 0 };
+@@
+   create() {
+@@
+     const rect = this.registry.get("minimapRect");
+     if (rect) this.miniRect = rect;
+     this.miniFrame = this.add.graphics().setScrollFactor(0);
+     this.miniViewport = this.add.graphics().setScrollFactor(0);
+-    this.drawMiniFrame();
++    this.drawMiniFrame();
+@@
+-    this.registry.events.on("changedata-minimapRect", (_p: any, r: any) => { this.miniRect = r; this.drawMiniFrame(); this.layoutStaminaBar(); });
++    this.registry.events.on("changedata-minimapRect", (_p: any, r: any) => { this.miniRect = r; this.drawMiniFrame(); this.layoutStaminaBar(); this.smoothVP = { x: 0, y: 0, w: 0, h: 0 }; });
+@@
+-        const fps = Math.round(this.game.loop.actualFps); this.fpsText.setText(`FPS: ${fps}`);
++        const fps = Math.round(this.game.loop.actualFps); this.fpsText.setText(`FPS: ${fps}`);
+         const world = this.scene.get("WorldScene") as any; const player = world?.player ?? world?.scene?.player;
+         if (player) { const x = Math.round(player.x); const y = Math.round(player.y); this.posText.setText(`Pos: ${x}, ${y}`); }
+         const s = this.registry.get("stamina") ?? 1; this.updateStaminaBar(s);
+         const now = this.time.now; const elapsed = (now - this.startTime) / 1000; this.timeText.setText(`Tiempo: ${elapsed.toFixed(1)}s`);
+-  this.drawViewportRect();
+-  this.redrawMiniDots();
++        this.drawViewportRect();
++        this.redrawMiniDots();
+         this.checkGameOver();
+       }
+     });
+@@
+   private drawMiniFrame() {
+     const { x, y, w, h } = this.miniRect; this.miniFrame.clear();
+-    this.miniFrame.lineStyle(2, 0xffffff, 0.9).strokeRoundedRect(x - 4, y - 4, w + 8, h + 8, 8);
+-    this.miniFrame.fillStyle(0x000000, 0.25).fillRoundedRect(x - 4, y - 4, w + 8, h + 8, 8);
++    // marco + fondo translúcido
++    this.miniFrame.lineStyle(2, 0xffffff, 0.9).strokeRoundedRect(x - 4, y - 4, w + 8, h + 8, 8);
++    this.miniFrame.fillStyle(0x000000, 0.28).fillRoundedRect(x - 4, y - 4, w + 8, h + 8, 8);
++    // rejilla ligera cada 500u de mundo
++    const worldW = this.registry.get("worldW") || 3000;
++    const worldH = this.registry.get("worldH") || 3000;
++    const scaleX = w / worldW;
++    const scaleY = h / worldH;
++    const step = 500;
++    this.miniFrame.lineStyle(1, 0xffffff, 0.08);
++    for (let gx = step; gx < worldW; gx += step) {
++      const lx = x + gx * scaleX; this.miniFrame.lineBetween(lx, y, lx, y + h);
++    }
++    for (let gy = step; gy < worldH; gy += step) {
++      const ly = y + gy * scaleY; this.miniFrame.lineBetween(x, ly, x + w, ly);
++    }
++    // rosa de vientos mínima
++    this.miniFrame.lineStyle(2, 0xffffff, 0.6).lineBetween(x + w / 2, y - 8, x + w / 2, y - 2);
++    this.miniFrame.lineStyle(2, 0xffffff, 0.6).lineBetween(x + w + 2, y + h / 2, x + w + 8, y + h / 2);
+   }
+   private drawViewportRect() {
+-    const vp = this.registry.get("viewport");
++    const vp = this.registry.get("viewport");
+     if (!vp) return;
+     const scaleX = this.miniRect.w / (this.registry.get("worldW") ?? 3000);
+     const scaleY = this.miniRect.h / (this.registry.get("worldH") ?? 3000);
+-    const rx = this.miniRect.x + vp.x * scaleX;
+-    const ry = this.miniRect.y + vp.y * scaleY;
+-    const rw = vp.w * scaleX;
+-    const rh = vp.h * scaleY;
++    let rx = this.miniRect.x + vp.x * scaleX;
++    let ry = this.miniRect.y + vp.y * scaleY;
++    let rw = vp.w * scaleX;
++    let rh = vp.h * scaleY;
++    // suavizado para evitar parpadeos (lerp)
++    if (this.smoothVP.w > 0) {
++      const a = 0.25; // factor de suavizado
++      rx = this.smoothVP.x + (rx - this.smoothVP.x) * a;
++      ry = this.smoothVP.y + (ry - this.smoothVP.y) * a;
++      rw = this.smoothVP.w + (rw - this.smoothVP.w) * a;
++      rh = this.smoothVP.h + (rh - this.smoothVP.h) * a;
++    }
++    this.smoothVP = { x: rx, y: ry, w: rw, h: rh };
+     this.miniViewport.clear();
+-    this.miniViewport.lineStyle(1, 0xffee58, 0.9).strokeRect(rx, ry, rw, rh);
++    this.miniViewport.lineStyle(1, 0xffee58, 0.95).strokeRect(rx, ry, rw, rh);
+   }
+@@
+   private redrawMiniDots() {
+     if (!this.miniDotsRT) return;
+     const rt = this.miniDotsRT;
+     rt.clear();
+     const worldW = this.registry.get("worldW") || 3000;
+     const worldH = this.registry.get("worldH") || 3000;
+     const scaleX = this.miniRect.w / worldW;
+     const scaleY = this.miniRect.h / worldH;
+     const worldScene = this.scene.get("WorldScene") as any;
+     if (!worldScene) return;
+     const addSpriteDot = (x: number, y: number, key: string) => {
+       const dx = x * scaleX;
+       const dy = y * scaleY;
+       if (dx < 0 || dy < 0 || dx > this.miniRect.w || dy > this.miniRect.h) return;
+-      rt.draw(key, dx, dy, 1);
++      // dibuja centrado en el píxel local del RT
++      rt.draw(key, Math.floor(dx), Math.floor(dy), 1);
+     };
+     if (worldScene.player) addSpriteDot(worldScene.player.x, worldScene.player.y, "dot_player");
+     worldScene.coins?.children?.iterate((c: any) => { if (c.active) addSpriteDot(c.x, c.y, "dot_coin"); });
+     worldScene.hazards?.children?.iterate((h: any) => { if (h.active) addSpriteDot(h.x, h.y, "dot_hazard"); });
+     worldScene.powerUps?.children?.iterate((p: any) => { if (p.active) addSpriteDot(p.x, p.y, "dot_power"); });
+   }
+*** End Patch
+*** Begin Patch
+*** Update File: src/scenes/BootScene.ts
+@@
+   create() {
+@@
+-      this.generateMiniDots();
++      this.generateMiniDots();
+       this.generateFogBrush();
+       console.info("[BootScene] starting World + UI scenes");
+       this.scene.start("WorldScene");
+       this.scene.launch("UIScene");
+@@
+   private generateMiniDots() {
+     const makeDot = (key: string, color: number) => {
+       if (this.textures.exists(key)) return;
+       const g = this.make.graphics({ add: false });
+-      g.fillStyle(color, 1).fillCircle(4, 4, 4);
++      // Dots más nítidos (mejor legibilidad en el minimapa)
++      g.fillStyle(0x000000, 0.25).fillCircle(4, 4, 5);
++      g.fillStyle(color, 1).fillCircle(4, 4, 3);
+       g.generateTexture(key, 8, 8);
+       g.destroy();
+     };
+*** End Patch

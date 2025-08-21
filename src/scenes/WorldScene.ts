@@ -20,6 +20,11 @@ export default class WorldScene extends Phaser.Scene {
   private minimapCam!: any;
   private fogRT!: any;
   private fogNeedsRedraw = true;
+  // --- Minimap helpers ---
+  private minimapIgnoreList: any[] = [];
+  private minimapMode: "small" | "large" = "small";
+  private MM_SMALL = { w: 220, h: 220, pad: 16 };
+  private MM_LARGE = { w: 380, h: 380, pad: 18 };
 
   constructor() { super("WorldScene"); }
 
@@ -44,10 +49,11 @@ export default class WorldScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
   const { W, A, S, D } = this.input.keyboard.addKeys("W,A,S,D") as any;
     const SHIFT = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    const TAB = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TAB);
     const ZOUT = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.MINUS);
     const ZIN = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.EQUALS);
     const ZRST = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ZERO);
-    this.keys = { W, A, S, D, SHIFT, ZIN, ZOUT, ZRST };
+    this.keys = { W, A, S, D, SHIFT, ZIN, ZOUT, ZRST, TAB };
 
     // Player
     const spawnX = this.worldW / 2;
@@ -64,39 +70,13 @@ export default class WorldScene extends Phaser.Scene {
     this.mainCam.setZoom(2.2);
     this.mainCam.setRoundPixels(true);
 
-  // Obstáculos / monedas / peligros
-    this.obstacles = this.physics.add.staticGroup();
-    this.spawnObstacles(60, 220);
-    this.coins = this.physics.add.group({ allowGravity: false });
-    if (this.registry.get("score") == null) this.registry.set("score", 0);
-    this.spawnCoins(80, 160);
-  this.hazards = this.physics.add.staticGroup();
-  this.spawnHazards(18, 260);
-  this.powerUps = this.physics.add.staticGroup();
-  this.spawnPowerUps();
-  console.info("[WorldScene] obstacles:", this.obstacles.getLength?.(), "coins:", this.coins.getLength?.(), "hazards:", this.hazards.getLength?.());
+    // Minimapa (arreglado y mejorado)
+    this.updateMinimapLayout();
 
-    this.physics.add.collider(this.player, this.obstacles);
-    this.physics.add.overlap(this.player, this.coins, this.onCollectCoin as any, undefined, this);
-  this.physics.add.overlap(this.player, this.hazards, this.onHitHazard as any, undefined, this);
-  this.physics.add.overlap(this.player, this.powerUps, this.onTakePowerUp as any, undefined, this);
-
-    // Minimapa
-    const MM_W = 220, MM_H = 220, PAD = 16;
-    const MM_X = this.scale.width - MM_W - PAD;
-    const MM_Y = PAD;
-    const fitZoom = Math.min(MM_W / this.worldW, MM_H / this.worldH);
-    this.minimapCam = this.cameras.add(MM_X, MM_Y, MM_W, MM_H)
-      .setZoom(fitZoom)
-      .setScroll(0, 0)
-      .setBackgroundColor(0x000000)
-      .setName("minimap");
-    this.minimapCam.setRoundPixels(true);
-    this.registry.set("minimapRect", { x: MM_X, y: MM_Y, w: MM_W, h: MM_H });
-
-  // Fog of war (exploración)
-  this.initFog();
-  console.info("[WorldScene] fog initialized", !!this.fogRT);
+    // Fog of war
+    this.initFog();
+    if (this.fogRT) this.minimapCam.ignore(this.fogRT); // evitar fog en minimapa
+    console.info("[WorldScene] fog initialized", !!this.fogRT);
 
     // Depth sorting periódico
     this.time.addEvent({
@@ -113,52 +93,48 @@ export default class WorldScene extends Phaser.Scene {
   console.info("[WorldScene] create end");
   }
 
-  private buildBackground() {
-    const CHUNK = 512;
-    const cols = Math.ceil(this.worldW / CHUNK);
-    const rows = Math.ceil(this.worldH / CHUNK);
-    for (let cy = 0; cy < rows; cy++) {
-      for (let cx = 0; cx < cols; cx++) {
-        const w = Math.min(CHUNK, this.worldW - cx * CHUNK);
-        const h = Math.min(CHUNK, this.worldH - cy * CHUNK);
-        const ts = this.add.tileSprite(cx * CHUNK, cy * CHUNK, w, h, "floor_plain") as any;
-        ts.setOrigin(0, 0).setDepth(-50);
-        // Variación ligera de tono usando tint
-        const variance = Phaser.Math.Between(-18, 18);
-        const base = 0x2e7d32;
-        const r = Phaser.Display.Color.GetColor(
-          Phaser.Math.Clamp(((base >> 16) & 0xff) + variance, 0, 255),
-          Phaser.Math.Clamp(((base >> 8) & 0xff) + variance, 0, 255),
-          Phaser.Math.Clamp((base & 0xff) + variance, 0, 255)
-        );
-        ts.setTint(r);
-        // Desfase del patrón para romper líneas
-        ts.tilePositionX = Phaser.Math.Between(0, 63);
-        ts.tilePositionY = Phaser.Math.Between(0, 63);
-      }
+  /** Recalcula la cámara del minimapa según el modo actual */
+  private updateMinimapLayout() {
+    const cfg = this.minimapMode === "small" ? this.MM_SMALL : this.MM_LARGE;
+    const MM_X = this.scale.width - cfg.w - cfg.pad;
+    const MM_Y = cfg.pad;
+    const fitZoom = Math.min(cfg.w / this.worldW, cfg.h / this.worldH);
+    if (!this.minimapCam) {
+      this.minimapCam = this.cameras.add(MM_X, MM_Y, cfg.w, cfg.h)
+        .setZoom(fitZoom)
+        .setScroll(0, 0)
+        .setBackgroundColor(0x000000)
+        .setName("minimap")
+        .setRoundPixels(true);
+    } else {
+      this.minimapCam.setViewport(MM_X, MM_Y, cfg.w, cfg.h);
+      this.minimapCam.setZoom(fitZoom).setScroll(0, 0);
     }
-    // Overlay opcional de motas (ruido) para textura
-    const noiseRT = this.make.renderTexture({ width: this.worldW, height: this.worldH, add: true });
-    const noiseDensity = Math.floor((this.worldW * this.worldH) / 70000); // ajustado
-    const g = this.make.graphics({ add: false });
-    for (let i = 0; i < noiseDensity; i++) {
-      const x = Phaser.Math.Between(0, this.worldW);
-      const y = Phaser.Math.Between(0, this.worldH);
-      const alpha = Phaser.Math.FloatBetween(0.03, 0.08);
-      g.fillStyle(0x000000, alpha).fillRect(0, 0, 2, 2);
-      noiseRT.draw(g, x, y);
-      g.clear();
-    }
-    noiseRT.setDepth(-40).setAlpha(0.6);
-    g.destroy();
+    // Ignorar entidades (solo se representarán via dots en UIScene)
+    const ignore = (obj: any) => {
+      if (!obj) return;
+      if (Array.isArray(obj)) obj.forEach(ignore);
+      else this.minimapCam.ignore(obj);
+    };
+    ignore(this.player);
+    ignore(this.obstacles?.getChildren?.() || []);
+    ignore(this.coins?.getChildren?.() || []);
+    ignore(this.hazards?.getChildren?.() || []);
+    ignore(this.powerUps?.getChildren?.() || []);
+    if (this.fogRT) ignore(this.fogRT);
+    this.registry.set("minimapRect", { x: MM_X, y: MM_Y, w: cfg.w, h: cfg.h });
+  }
+
+  private toggleMinimapSize() {
+    this.minimapMode = this.minimapMode === "small" ? "large" : "small";
+    this.updateMinimapLayout();
   }
 
   update(_t: number, dt: number) {
     this.player.update(dt);
-    if (!this.player) {
-      console.error("[WorldScene] player undefined in update");
-      return;
-    }
+    if (!this.player) return;
+    // Alternar tamaño minimapa con TAB
+    if (Phaser.Input.Keyboard.JustDown(this.keys.TAB)) this.toggleMinimapSize();
     if (Phaser.Input.Keyboard.JustDown(this.keys.ZIN)) this.mainCam.setZoom(Phaser.Math.Clamp(this.mainCam.zoom + 0.2, 1.0, 3.5));
     if (Phaser.Input.Keyboard.JustDown(this.keys.ZOUT)) this.mainCam.setZoom(Phaser.Math.Clamp(this.mainCam.zoom - 0.2, 1.0, 3.5));
     if (Phaser.Input.Keyboard.JustDown(this.keys.ZRST)) this.mainCam.setZoom(2.2);
@@ -217,7 +193,9 @@ export default class WorldScene extends Phaser.Scene {
       if (key === "box") body.setSize(30, 22).setOffset((sprite.width - 30) / 2, sprite.height - 24);
       else { const solidH = 16; body.setSize(20, solidH).setOffset((sprite.width - 20) / 2, sprite.height - solidH); }
       body.updateFromGameObject();
-  placed.push({ x: p.x, y: p.y });
+    // No los dibujamos en el minimapa (usamos dots simplificados)
+    this.minimapCam?.ignore?.(sprite);
+      placed.push({ x: p.x, y: p.y });
     }
   }
 
@@ -237,7 +215,8 @@ export default class WorldScene extends Phaser.Scene {
       coin.setOrigin(0.5, 1);
       coin.refreshBody();
       if (coin.body instanceof Phaser.Physics.Arcade.Body) coin.body.setSize(16, 12).setOffset((coin.width - 16) / 2, coin.height - 14);
-  placed.push({ x: p.x, y: p.y });
+    this.minimapCam?.ignore?.(coin);
+      placed.push({ x: p.x, y: p.y });
     }
   }
 
@@ -263,7 +242,8 @@ export default class WorldScene extends Phaser.Scene {
         body.updateFromGameObject();
       }
       hazard.setTint(0xff5252);
-  placed.push({ x: p.x, y: p.y });
+    this.minimapCam?.ignore?.(hazard);
+      placed.push({ x: p.x, y: p.y });
       this.tweens.add({ targets: hazard, y: hazard.y - 6, duration: 900, yoyo: true, repeat: -1, ease: "sine.inOut" });
     }
   }
@@ -281,6 +261,7 @@ export default class WorldScene extends Phaser.Scene {
       pu.setTint(type === "shield" ? 0x82b1ff : 0xffab91);
       if (pu.body instanceof Phaser.Physics.Arcade.StaticBody) pu.body.setSize(16, 14).setOffset((pu.width - 16) / 2, pu.height - 16).updateFromGameObject();
       this.tweens.add({ targets: pu, alpha: 0.55, duration: 900, yoyo: true, repeat: -1 });
+    this.minimapCam?.ignore?.(pu);
     }
   }
 
@@ -365,5 +346,21 @@ export default class WorldScene extends Phaser.Scene {
     // Dibujar un círculo de revelado
     this.fogRT.erase("fog_brush", px - 30, py - 30);
     // Leve re oscurecimiento perímetro para sensación de niebla dinámica opcional
+  }
+
+  private buildBackground() {
+    for (let x = 0; x < this.worldW; x += 64) {
+      for (let y = 0; y < this.worldH; y += 64) {
+        this.add.image(x, y, "floor_plain").setOrigin(0);
+      }
+    }
+    this.obstacles = this.physics.add.staticGroup();
+    this.coins = this.physics.add.staticGroup();
+    this.hazards = this.physics.add.staticGroup();
+    this.powerUps = this.physics.add.staticGroup();
+    this.spawnObstacles(30, 120);
+    this.spawnCoins(40, 80);
+    this.spawnHazards(12, 180);
+    this.spawnPowerUps();
   }
 }
