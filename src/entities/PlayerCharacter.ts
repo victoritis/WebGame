@@ -38,6 +38,9 @@ export class PlayerCharacter extends Phaser.Physics.Arcade.Sprite {
 
   // Visual
   private weapon?: Phaser.GameObjects.Sprite;
+  private weaponAngle: number = 0;
+  private targetWeaponAngle: number = 0;
+  private currentWeaponTexture: string = 'weapon_sword_golden';
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     const textureKey = scene.textures.exists('hero_basic') ? 'hero_basic' : 'box';
@@ -82,16 +85,34 @@ export class PlayerCharacter extends Phaser.Physics.Arcade.Sprite {
    * Crea el sprite del arma
    */
   private createWeaponSprite(): void {
-    // Crear un sprite simple de arma
-    const graphics = this.scene.make.graphics({ add: false });
-    graphics.fillStyle(0xcccccc, 1);
-    graphics.fillRect(0, 0, 24, 6);
-    graphics.generateTexture('weapon_default', 24, 6);
-    graphics.destroy();
+    // Usar imagen real de arma si existe
+    const weaponKey = this.scene.textures.exists(this.currentWeaponTexture)
+      ? this.currentWeaponTexture
+      : 'weapon_default';
 
-    this.weapon = this.scene.add.sprite(this.x, this.y, 'weapon_default');
-    this.weapon.setOrigin(0, 0.5);
+    // Si no existe weapon_default, crearlo
+    if (!this.scene.textures.exists('weapon_default')) {
+      const graphics = this.scene.make.graphics({ add: false });
+      graphics.fillStyle(0xcccccc, 1);
+      graphics.fillRect(0, 0, 24, 6);
+      graphics.generateTexture('weapon_default', 24, 6);
+      graphics.destroy();
+    }
+
+    this.weapon = this.scene.add.sprite(this.x, this.y, weaponKey);
+    this.weapon.setOrigin(0.2, 0.5); // Origen cerca del mango
     this.weapon.setDepth(this.depth + 1);
+    this.weapon.setScale(1.2); // Hacer el arma un poco más grande
+  }
+
+  /**
+   * Cambia el arma visual del jugador
+   */
+  changeWeapon(weaponTexture: string): void {
+    if (this.weapon && this.scene.textures.exists(weaponTexture)) {
+      this.currentWeaponTexture = weaponTexture;
+      this.weapon.setTexture(weaponTexture);
+    }
   }
 
   /**
@@ -217,10 +238,11 @@ export class PlayerCharacter extends Phaser.Physics.Arcade.Sprite {
       totalDamage *= 1.5;
     }
 
-    // Emitir evento de ataque
-    const attackAngle = this.flipX ? Math.PI : 0;
-    const attackX = this.x + Math.cos(attackAngle) * 30;
-    const attackY = this.y - 20;
+    // Usar el ángulo actual del arma hacia el mouse
+    const attackAngle = this.weaponAngle;
+    const attackRange = 50;
+    const attackX = this.x + Math.cos(attackAngle) * attackRange;
+    const attackY = this.y - 15 + Math.sin(attackAngle) * attackRange;
 
     this.scene.events.emit('player-attack', {
       x: attackX,
@@ -230,16 +252,44 @@ export class PlayerCharacter extends Phaser.Physics.Arcade.Sprite {
       angle: attackAngle
     });
 
-    // Animación de ataque
-    this.scene.tweens.add({
-      targets: this.weapon,
-      angle: this.flipX ? -90 : 90,
-      duration: 150,
-      yoyo: true,
-      onComplete: () => {
-        this.isAttacking = false;
-      }
-    });
+    // Animación de ataque mejorada (empuje hacia adelante)
+    if (this.weapon) {
+      const currentAngle = this.weapon.rotation;
+      const currentScale = this.weapon.scaleX;
+
+      // Empujar el arma hacia adelante
+      this.scene.tweens.add({
+        targets: this.weapon,
+        scaleX: currentScale * 1.3,
+        scaleY: this.weapon.scaleY * 1.3,
+        duration: 80,
+        yoyo: true,
+        ease: 'Quad.easeOut'
+      });
+
+      // Rotar ligeramente durante el ataque
+      this.scene.tweens.add({
+        targets: this.weapon,
+        angle: (currentAngle * 180 / Math.PI) + 25,
+        duration: 100,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          this.isAttacking = false;
+        }
+      });
+
+      // Efecto visual de ataque
+      const attackEffect = this.scene.add.circle(attackX, attackY, 20, 0xFFFFFF, 0.4);
+      attackEffect.setDepth(999);
+      this.scene.tweens.add({
+        targets: attackEffect,
+        scale: 1.5,
+        alpha: 0,
+        duration: 200,
+        onComplete: () => attackEffect.destroy()
+      });
+    }
 
     // Sonido de ataque
     if (this.scene.sound.get('s_pickup')) {
@@ -248,15 +298,54 @@ export class PlayerCharacter extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
-   * Actualiza posición del arma
+   * Actualiza posición del arma (sigue el mouse)
    */
   private updateWeapon(): void {
     if (!this.weapon) return;
 
-    const offsetX = this.flipX ? -12 : 12;
-    this.weapon.setPosition(this.x + offsetX, this.y - 15);
-    this.weapon.setFlipX(this.flipX);
-    this.weapon.setDepth(this.depth + 1);
+    // Obtener posición del mouse en el mundo
+    const pointer = this.scene.input.activePointer;
+    const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+
+    // Calcular ángulo hacia el mouse
+    this.targetWeaponAngle = Phaser.Math.Angle.Between(
+      this.x,
+      this.y - 15,
+      worldPoint.x,
+      worldPoint.y
+    );
+
+    // Suavizar rotación (interpolación)
+    const lerpFactor = 0.2;
+    this.weaponAngle = Phaser.Math.Linear(
+      this.weaponAngle,
+      this.targetWeaponAngle,
+      lerpFactor
+    );
+
+    // Posición del arma relativa al jugador
+    const distance = 18;
+    const weaponX = this.x + Math.cos(this.weaponAngle) * distance;
+    const weaponY = this.y - 15 + Math.sin(this.weaponAngle) * distance;
+
+    this.weapon.setPosition(weaponX, weaponY);
+    this.weapon.setRotation(this.weaponAngle);
+
+    // Voltear el arma si apunta hacia la izquierda
+    if (Math.abs(this.weaponAngle) > Math.PI / 2) {
+      this.weapon.setFlipY(true);
+      this.setFlipX(true);
+    } else {
+      this.weapon.setFlipY(false);
+      this.setFlipX(false);
+    }
+
+    // Ajustar profundidad para que aparezca delante o detrás del jugador
+    if (worldPoint.y < this.y) {
+      this.weapon.setDepth(this.depth - 1);
+    } else {
+      this.weapon.setDepth(this.depth + 1);
+    }
   }
 
   /**

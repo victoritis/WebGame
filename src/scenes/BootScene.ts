@@ -15,14 +15,79 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("hero_basic", `${base}/hero_basic.png`);
     this.load.image("box", `${base}/box.png`);
     this.load.image("column", `${base}/column.png`);
+    this.load.image("column_wall", `${base}/column_wall.png`);
+
+    // Cofres y contenedores
     this.load.image("chest_golden_closed", `${base}/chest_golden_closed.png`);
+    this.load.image("chest_golden_open_full", `${base}/chest_golden_open_full.png`);
+    this.load.image("chest_closed", `${base}/chest_closed.png`);
+    this.load.image("chest_open_full", `${base}/chest_open_full.png`);
+
+    // Monstruos variados
     this.load.image("monster_bat", `${base}/monster_bat.png`);
+    this.load.image("monster_bies", `${base}/monster_bies.png`);
+    this.load.image("monster_elemental_plant", `${base}/monster_elemental_plant.png`);
+    this.load.image("monster_zombie", `${base}/monster_zombie.png`);
+    this.load.image("monster_ogre", `${base}/monster_ogre.png`);
+    this.load.image("monster_ghost", `${base}/monster_ghost.png`);
+    this.load.image("monster_demon", `${base}/monster_demon.png`);
+
+    // Armas reales del jugador
+    this.load.image("weapon_sword_golden", `${base}/weapon_sword_golden.png`);
+    this.load.image("weapon_katana_silver", `${base}/weapon_katana_silver.png`);
+    this.load.image("weapon_sledgehammer", `${base}/weapon_sledgehammer.png`);
+    this.load.image("weapon_rusty_sword", `${base}/weapon_rusty_sword.png`);
+    this.load.image("weapon_baton_mace", `${base}/weapon_baton_mace.png`);
+    this.load.image("hand", `${base}/hand.png`);
 
     // Items y pociones
     this.load.image("flask_red", `${base}/flask_red.png`);
     this.load.image("flask_blue", `${base}/flask_blue.png`);
     this.load.image("flask_yellow", `${base}/flask_yellow.png`);
     this.load.image("flask_green", `${base}/flask_green.png`);
+
+    // Decoraciones - Antorchas
+    this.load.image("torch_1", `${base}/torch_1.png`);
+    this.load.image("torch_2", `${base}/torch_2.png`);
+    this.load.image("torch_3", `${base}/torch_3.png`);
+    this.load.image("torch_4", `${base}/torch_4.png`);
+
+    // Decoraciones - Banderas
+    this.load.image("wall_flag_blue", `${base}/wall_flag_blue.png`);
+    this.load.image("wall_flag_red", `${base}/wall_flag_red.png`);
+    this.load.image("wall_flag_green", `${base}/wall_flag_green.png`);
+
+    // Decoraciones - Gárgolas y fuentes
+    this.load.image("floor_gargoyle_blue_basin", `${base}/floor_gargoyle_blue_basin.png`);
+    this.load.image("floor_gargoyle_red_basin", `${base}/floor_gargoyle_red_basin.png`);
+    this.load.image("floor_gargoyle_green_basin", `${base}/floor_gargoyle_green_basin.png`);
+    this.load.image("floor_gargoyle_blue_puddle", `${base}/floor_gargoyle_blue_puddle.png`);
+    this.load.image("floor_gargoyle_mid_red_left", `${base}/floor_gargoyle_mid_red_left.png`);
+
+    // Decoraciones - Varios
+    this.load.image("table_long_ne", `${base}/table_long_ne.png`);
+    this.load.image("table_long_nw", `${base}/table_long_nw.png`);
+    this.load.image("weapon_rack", `${base}/weapon_rack.png`);
+    this.load.image("armor_stand", `${base}/armor_stand.png`);
+
+    // Texturas de suelo variadas
+    this.load.image("floor_stain_1", `${base}/floor_stain_1.png`);
+    this.load.image("floor_stain_2", `${base}/floor_stain_2.png`);
+    this.load.image("floor_stain_3", `${base}/floor_stain_3.png`);
+    this.load.image("floor_mud_mid_1", `${base}/floor_mud_mid_1.png`);
+    this.load.image("floor_light", `${base}/floor_light.png`);
+
+    // Paredes variadas
+    this.load.image("Wall_outer_ne", `${base}/Wall_outer_ne.png`);
+    this.load.image("Wall_inner_se", `${base}/Wall_inner_se.png`);
+    this.load.image("wall_banner_blue", `${base}/wall_banner_blue.png`);
+
+    // Puertas
+    this.load.image("door_right", `${base}/door_right.png`);
+    this.load.image("door_left", `${base}/door_left.png`);
+
+    // NPCs
+    this.load.image("npc_paladin", `${base}/npc_paladin.png`);
 
     // Bordes del mundo
     this.load.image("edge_n", `${base}/Edge_n.png`);
@@ -33,7 +98,6 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("edge_nw", `${base}/Edge_nw.png`);
     this.load.image("edge_se", `${base}/Edge_se.png`);
     this.load.image("edge_sw", `${base}/Edge_sw.png`);
-    this.load.image("torch_1", `${base}/torch_1.png`);
 
     // Audio embebido
     this.load.audio("s_pickup", ["data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AACJWAAACABAAZGF0YQgAAAAA/////wAAAP///wAAAA=="]);

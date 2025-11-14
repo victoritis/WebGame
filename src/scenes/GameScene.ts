@@ -20,6 +20,7 @@ export class GameScene extends Phaser.Scene {
   private enemies!: Phaser.GameObjects.Group;
   private items!: Phaser.Physics.Arcade.StaticGroup;
   private obstacles!: Phaser.Physics.Arcade.StaticGroup;
+  private decorations!: Phaser.GameObjects.Group;
 
   // Sistemas
   private combatSystem!: CombatSystem;
@@ -70,6 +71,7 @@ export class GameScene extends Phaser.Scene {
     this.enemies = this.add.group({
       runChildUpdate: true
     });
+    this.decorations = this.add.group();
 
     // Crear borde del mundo
     this.createWorldBorders();
@@ -77,6 +79,10 @@ export class GameScene extends Phaser.Scene {
     // Generar obstáculos y items iniciales
     this.spawnObstacles(40);
     this.spawnItems(20);
+
+    // Añadir decoraciones al mapa
+    this.spawnDecorations();
+    this.addFloorDetails();
 
     // Crear jugador
     this.createPlayer();
@@ -441,6 +447,28 @@ export class GameScene extends Phaser.Scene {
     enemy.setTarget(this.player);
     enemy.setCollideWorldBounds(true);
 
+    // Efecto visual de aparición
+    enemy.setAlpha(0);
+    enemy.setScale(0.5);
+    this.tweens.add({
+      targets: enemy,
+      alpha: 1,
+      scale: 1,
+      duration: 400,
+      ease: 'Back.easeOut'
+    });
+
+    // Partículas de aparición
+    const spawnEffect = this.add.circle(x, y, 30, 0xFF0000, 0.5);
+    spawnEffect.setDepth(999);
+    this.tweens.add({
+      targets: spawnEffect,
+      scale: 2,
+      alpha: 0,
+      duration: 400,
+      onComplete: () => spawnEffect.destroy()
+    });
+
     // Colisión con jugador
     this.physics.add.overlap(enemy, this.player, (obj1, obj2) => {
       // La colisión se maneja en el sistema de combate
@@ -482,6 +510,31 @@ export class GameScene extends Phaser.Scene {
 
     const enemiesKilled = (this.registry.get('enemiesKilled') || 0) + 1;
     this.registry.set('enemiesKilled', enemiesKilled);
+
+    // Efecto visual de muerte mejorado
+    const deathEffect = this.add.circle(enemy.x, enemy.y, 40, 0xFF4444, 0.6);
+    deathEffect.setDepth(999);
+    this.tweens.add({
+      targets: deathEffect,
+      scale: 2.5,
+      alpha: 0,
+      duration: 500,
+      ease: 'Quad.easeOut',
+      onComplete: () => deathEffect.destroy()
+    });
+
+    // Partículas de muerte
+    if (this.textures.exists('dot_hazard')) {
+      const particles = this.add.particles(enemy.x, enemy.y, 'dot_hazard', {
+        speed: { min: 50, max: 150 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 1, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 600,
+        quantity: 15
+      });
+      this.time.delayedCall(700, () => particles.destroy());
+    }
 
     // Chance de drop de item
     if (Math.random() < 0.3) {
@@ -655,6 +708,242 @@ export class GameScene extends Phaser.Scene {
 
     // La carga se realizará después de crear el jugador
     this.registry.set('loadedSaveData', saveData);
+  }
+
+  /**
+   * Genera decoraciones por todo el mapa
+   */
+  private spawnDecorations(): void {
+    const tileSize = GameConfig.TILE_SIZE;
+    const padding = 150;
+
+    // Antorchas en las paredes del borde (cada cierta distancia)
+    const torchSpacing = 200;
+    for (let x = torchSpacing; x < this.worldW - padding; x += torchSpacing) {
+      // Antorchas en pared norte
+      if (this.textures.exists('torch_1')) {
+        const torch1 = this.add.sprite(x, 80, Phaser.Math.RND.pick(['torch_1', 'torch_2', 'torch_3', 'torch_4']));
+        torch1.setOrigin(0.5, 1);
+        torch1.setDepth(100);
+        this.decorations.add(torch1);
+        this.addTorchAnimation(torch1);
+      }
+
+      // Antorchas en pared sur
+      if (this.textures.exists('torch_1')) {
+        const torch2 = this.add.sprite(x, this.worldH - 80, Phaser.Math.RND.pick(['torch_1', 'torch_2', 'torch_3', 'torch_4']));
+        torch2.setOrigin(0.5, 1);
+        torch2.setDepth(100);
+        this.decorations.add(torch2);
+        this.addTorchAnimation(torch2);
+      }
+    }
+
+    for (let y = torchSpacing; y < this.worldH - padding; y += torchSpacing) {
+      // Antorchas en pared oeste
+      if (this.textures.exists('torch_1')) {
+        const torch3 = this.add.sprite(80, y, Phaser.Math.RND.pick(['torch_1', 'torch_2', 'torch_3', 'torch_4']));
+        torch3.setOrigin(0.5, 1);
+        torch3.setDepth(100);
+        this.decorations.add(torch3);
+        this.addTorchAnimation(torch3);
+      }
+
+      // Antorchas en pared este
+      if (this.textures.exists('torch_1')) {
+        const torch4 = this.add.sprite(this.worldW - 80, y, Phaser.Math.RND.pick(['torch_1', 'torch_2', 'torch_3', 'torch_4']));
+        torch4.setOrigin(0.5, 1);
+        torch4.setDepth(100);
+        this.decorations.add(torch4);
+        this.addTorchAnimation(torch4);
+      }
+    }
+
+    // Cofres decorativos cerrados (no interactuables) en posiciones estratégicas
+    const chestPositions = [
+      { x: 200, y: 200 },
+      { x: this.worldW - 200, y: 200 },
+      { x: 200, y: this.worldH - 200 },
+      { x: this.worldW - 200, y: this.worldH - 200 },
+      { x: this.worldW / 2 - 300, y: this.worldH / 2 },
+      { x: this.worldW / 2 + 300, y: this.worldH / 2 }
+    ];
+
+    chestPositions.forEach(pos => {
+      const chestTexture = Phaser.Math.RND.pick(['chest_golden_closed', 'chest_closed']);
+      if (this.textures.exists(chestTexture)) {
+        const chest = this.add.sprite(pos.x, pos.y, chestTexture);
+        chest.setOrigin(0.5, 1);
+        chest.setDepth(10);
+        this.decorations.add(chest);
+
+        // Animación de brillo para cofres dorados
+        if (chestTexture === 'chest_golden_closed') {
+          this.tweens.add({
+            targets: chest,
+            alpha: 0.8,
+            duration: 2000,
+            yoyo: true,
+            repeat: -1,
+            ease: 'sine.inOut'
+          });
+        }
+      }
+    });
+
+    // Gárgolas y fuentes distribuidas por el mapa
+    const gargoylePositions = this.generateSpawnPoints(8, 200, 250);
+    gargoylePositions.forEach(pos => {
+      const gargoyleTexture = Phaser.Math.RND.pick([
+        'floor_gargoyle_blue_basin',
+        'floor_gargoyle_red_basin',
+        'floor_gargoyle_green_basin',
+        'floor_gargoyle_mid_red_left'
+      ]);
+
+      if (this.textures.exists(gargoyleTexture)) {
+        const gargoyle = this.add.sprite(pos.x, pos.y, gargoyleTexture);
+        gargoyle.setOrigin(0.5, 1);
+        gargoyle.setDepth(5);
+        this.decorations.add(gargoyle);
+      }
+    });
+
+    // Columnas decorativas adicionales
+    const columnPositions = this.generateSpawnPoints(15, 150, 200);
+    columnPositions.forEach(pos => {
+      const columnTexture = this.textures.exists('column_wall') ? 'column_wall' : 'column';
+      const column = this.add.sprite(pos.x, pos.y, columnTexture);
+      column.setOrigin(0.5, 1);
+      column.setDepth(20);
+      this.decorations.add(column);
+    });
+
+    // Banderas en posiciones aleatorias
+    const flagPositions = this.generateSpawnPoints(12, 180, 220);
+    flagPositions.forEach(pos => {
+      const flagTexture = Phaser.Math.RND.pick(['wall_flag_blue', 'wall_flag_red', 'wall_flag_green']);
+      if (this.textures.exists(flagTexture)) {
+        const flag = this.add.sprite(pos.x, pos.y, flagTexture);
+        flag.setOrigin(0.5, 1);
+        flag.setDepth(15);
+        this.decorations.add(flag);
+
+        // Animación de ondeo
+        this.tweens.add({
+          targets: flag,
+          scaleX: 1.05,
+          duration: 1500 + Math.random() * 500,
+          yoyo: true,
+          repeat: -1,
+          ease: 'sine.inOut'
+        });
+      }
+    });
+
+    // Mesas y racks de armas
+    const furniturePositions = this.generateSpawnPoints(6, 250, 280);
+    furniturePositions.forEach((pos, index) => {
+      let texture = '';
+      if (index % 3 === 0 && this.textures.exists('weapon_rack')) {
+        texture = 'weapon_rack';
+      } else if (index % 3 === 1 && this.textures.exists('armor_stand')) {
+        texture = 'armor_stand';
+      } else if (this.textures.exists('table_long_ne')) {
+        texture = Phaser.Math.RND.pick(['table_long_ne', 'table_long_nw']);
+      }
+
+      if (texture && this.textures.exists(texture)) {
+        const furniture = this.add.sprite(pos.x, pos.y, texture);
+        furniture.setOrigin(0.5, 1);
+        furniture.setDepth(12);
+        this.decorations.add(furniture);
+      }
+    });
+
+    console.log(`[GameScene] ${this.decorations.getLength()} decoraciones añadidas al mapa`);
+  }
+
+  /**
+   * Añade animación de parpadeo a las antorchas
+   */
+  private addTorchAnimation(torch: Phaser.GameObjects.Sprite): void {
+    this.tweens.add({
+      targets: torch,
+      alpha: 0.7,
+      scale: 0.95,
+      duration: 300 + Math.random() * 200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'sine.inOut'
+    });
+
+    // Luz ambiental alrededor de la antorcha
+    const light = this.add.circle(torch.x, torch.y - 20, 40, 0xFFAA00, 0.15);
+    light.setDepth(1);
+    this.decorations.add(light);
+
+    this.tweens.add({
+      targets: light,
+      alpha: 0.25,
+      scale: 1.1,
+      duration: 400 + Math.random() * 200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'sine.inOut'
+    });
+  }
+
+  /**
+   * Añade detalles visuales al suelo
+   */
+  private addFloorDetails(): void {
+    const floorTextures = ['floor_stain_1', 'floor_stain_2', 'floor_stain_3', 'floor_mud_mid_1'];
+    const detailCount = 80;
+
+    for (let i = 0; i < detailCount; i++) {
+      const x = Phaser.Math.Between(100, this.worldW - 100);
+      const y = Phaser.Math.Between(100, this.worldH - 100);
+
+      const texture = Phaser.Math.RND.pick(floorTextures);
+      if (this.textures.exists(texture)) {
+        const detail = this.add.sprite(x, y, texture);
+        detail.setOrigin(0.5, 0.5);
+        detail.setDepth(1);
+        detail.setAlpha(0.6);
+        detail.setRotation(Phaser.Math.FloatBetween(0, Math.PI * 2));
+        this.decorations.add(detail);
+      }
+    }
+
+    // Charcos de gárgolas
+    const puddleCount = 20;
+    for (let i = 0; i < puddleCount; i++) {
+      const x = Phaser.Math.Between(150, this.worldW - 150);
+      const y = Phaser.Math.Between(150, this.worldH - 150);
+
+      if (this.textures.exists('floor_gargoyle_blue_puddle')) {
+        const puddle = this.add.sprite(x, y, 'floor_gargoyle_blue_puddle');
+        puddle.setOrigin(0.5, 0.5);
+        puddle.setDepth(2);
+        puddle.setAlpha(0.7);
+        this.decorations.add(puddle);
+
+        // Animación sutil de charcos
+        this.tweens.add({
+          targets: puddle,
+          alpha: 0.5,
+          scaleX: 1.05,
+          scaleY: 0.95,
+          duration: 3000,
+          yoyo: true,
+          repeat: -1,
+          ease: 'sine.inOut'
+        });
+      }
+    }
+
+    console.log(`[GameScene] ${detailCount + puddleCount} detalles de suelo añadidos`);
   }
 }
 

@@ -2,6 +2,7 @@ import { EnemyConfig, EnemyType } from '../config/Types';
 
 /**
  * Base de datos de enemigos con sus configuraciones
+ * Ahora usa imágenes reales de la carpeta /public/items/
  */
 export const EnemyDatabase: Record<EnemyType, EnemyConfig> = {
   [EnemyType.BAT]: {
@@ -11,7 +12,7 @@ export const EnemyDatabase: Record<EnemyType, EnemyConfig> = {
     speed: 120,
     xpReward: 10,
     goldReward: 2,
-    texture: 'monster_bat',
+    texture: 'monster_bat', // Imagen real
     aiType: 'chase'
   },
   [EnemyType.SLIME]: {
@@ -21,7 +22,7 @@ export const EnemyDatabase: Record<EnemyType, EnemyConfig> = {
     speed: 80,
     xpReward: 15,
     goldReward: 3,
-    texture: 'monster_slime',
+    texture: 'monster_bies', // Imagen real: Bies
     aiType: 'wander'
   },
   [EnemyType.SKELETON]: {
@@ -31,7 +32,7 @@ export const EnemyDatabase: Record<EnemyType, EnemyConfig> = {
     speed: 90,
     xpReward: 25,
     goldReward: 5,
-    texture: 'monster_skeleton',
+    texture: 'monster_zombie', // Imagen real: Zombie
     aiType: 'patrol'
   },
   [EnemyType.GOBLIN]: {
@@ -41,7 +42,7 @@ export const EnemyDatabase: Record<EnemyType, EnemyConfig> = {
     speed: 100,
     xpReward: 20,
     goldReward: 7,
-    texture: 'monster_goblin',
+    texture: 'monster_ogre', // Imagen real: Ogro
     aiType: 'ranged'
   },
   [EnemyType.BOSS]: {
@@ -51,7 +52,7 @@ export const EnemyDatabase: Record<EnemyType, EnemyConfig> = {
     speed: 70,
     xpReward: 100,
     goldReward: 50,
-    texture: 'monster_boss',
+    texture: 'monster_demon', // Imagen real: Demonio
     aiType: 'chase'
   }
 };
